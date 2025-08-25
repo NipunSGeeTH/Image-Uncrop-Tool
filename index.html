@@ -79,6 +79,14 @@
     input[type="color"] {
         padding: 4px;
         height: 40px;
+        width: 50px;
+        border: 1px solid #dddfe2;
+        border-radius: 6px;
+    }
+    .background-options {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
     }
     button {
       background-color: #1877f2;
@@ -128,15 +136,27 @@
         <input type="number" id="expandSize" value="50" min="0">
       </div>
 
-      <div class="control-group">
-        <label for="bgColor">3. Choose background</label>
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <input type="color" id="bgColor" value="#ffffff" style="width: 40px; height: 40px; padding: 0; border: none;">
-            <label class="inline-label">
-              <input type="checkbox" id="transparentBg"> Transparent
-            </label>
+      <fieldset id="background-controls-fieldset" style="border: none; padding: 0; margin: 0;" disabled>
+        <div class="control-group">
+          <label>3. Choose background type</label>
+          <div class="background-options">
+              <label class="inline-label"><input type="radio" name="bgType" value="color" checked> Color</label>
+              <label class="inline-label"><input type="radio" name="bgType" value="image"> Image</label>
+              <label class="inline-label"><input type="radio" name="bgType" value="transparent"> Transparent</label>
+          </div>
         </div>
-      </div>
+
+        <div class="control-group" id="color-picker-group">
+          <label for="bgColor">Background Color</label>
+          <input type="color" id="bgColor" value="#ffffff">
+        </div>
+
+        <div class="control-group" id="bg-image-group" style="display: none;">
+          <label for="bgImageInput">Background Image</label>
+          <input type="file" id="bgImageInput" accept="image/*">
+        </div>
+      </fieldset>
+
     </div>
 
     <div class="output">
@@ -149,13 +169,21 @@
   <script>
     const imageInput = document.getElementById('imageInput');
     const bgColorInput = document.getElementById('bgColor');
-    const transparentBg = document.getElementById('transparentBg');
     const expandSizeInput = document.getElementById('expandSize');
     const downloadBtn = document.getElementById('downloadBtn');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
+    // Background controls
+    const bgControlsFieldset = document.getElementById('background-controls-fieldset');
+    const bgTypeRadios = document.querySelectorAll('input[name="bgType"]');
+    const colorPickerGroup = document.getElementById('color-picker-group');
+    const bgImageGroup = document.getElementById('bg-image-group');
+    const bgImageInput = document.getElementById('bgImageInput');
+
     let img = new Image();
+    let bgImg = new Image();
+    let bgImageLoaded = false;
     let originalFileName = '';
 
     function processImage() {
@@ -174,11 +202,19 @@
 
       ctx.clearRect(0, 0, width, height);
 
-      if (!transparentBg.checked) {
+      const selectedBgType = document.querySelector('input[name="bgType"]:checked').value;
+
+      if (selectedBgType === 'color') {
         ctx.fillStyle = bgColorInput.value;
         ctx.fillRect(0, 0, width, height);
+      } else if (selectedBgType === 'image' && bgImageLoaded) {
+        const pattern = ctx.createPattern(bgImg, 'repeat');
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, 0, width, height);
       }
+      // For 'transparent', we do nothing, leaving the cleared canvas.
 
+      // Draw main image
       ctx.drawImage(img, padding, padding);
 
       downloadBtn.disabled = false;
@@ -192,15 +228,40 @@
       
       const reader = new FileReader();
       reader.onload = (ev) => {
-        img.onload = processImage;
+        img.onload = () => {
+          bgControlsFieldset.disabled = false;
+          processImage();
+        };
         img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
 
-    transparentBg.addEventListener('change', () => {
-      bgColorInput.disabled = transparentBg.checked;
-      processImage();
+    bgImageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) {
+        bgImageLoaded = false;
+        processImage(); // Redraw without bg image if selection is cancelled
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        bgImg.onload = () => {
+          bgImageLoaded = true;
+          processImage();
+        };
+        bgImg.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    bgTypeRadios.forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const type = e.target.value;
+        colorPickerGroup.style.display = type === 'color' ? 'flex' : 'none';
+        bgImageGroup.style.display = type === 'image' ? 'flex' : 'none';
+        processImage();
+      });
     });
 
     bgColorInput.addEventListener('input', processImage);
@@ -215,8 +276,6 @@
       link.click();
     });
 
-    // Initial state
-    bgColorInput.disabled = transparentBg.checked;
   </script>
 </body>
 </html>
